@@ -1,0 +1,157 @@
+services:
+  user-db:
+    image: postgres:16-alpine
+    container_name: ai-travel-user-db
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: user_service
+      POSTGRES_PASSWORD: ${USER_DB_PASSWORD:-user_password}
+    volumes:
+      - user_db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_service -d user_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  travel-db:
+    image: postgres:16-alpine
+    container_name: ai-travel-travel-db
+    environment:
+      POSTGRES_DB: travel_db
+      POSTGRES_USER: travel_service
+      POSTGRES_PASSWORD: ${TRAVEL_DB_PASSWORD:-travel_password}
+    volumes:
+      - travel_db_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travel_service -d travel_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-service:
+    build:
+      context: ./services/user-service
+    container_name: ai-travel-user-service
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      DATABASE_URL: postgresql+psycopg://user_service:${USER_DB_PASSWORD:-user_password}@user-db:5432/user_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-local-dev-secret}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+    depends_on:
+      user-db:
+        condition: service_healthy
+    ports:
+      - "8011:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  travel-service:
+    build:
+      context: ./services/travel-service
+    container_name: ai-travel-travel-service
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      DATABASE_URL: postgresql+psycopg://travel_service:${TRAVEL_DB_PASSWORD:-travel_password}@travel-db:5432/travel_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-local-dev-secret}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+    depends_on:
+      travel-db:
+        condition: service_healthy
+    ports:
+      - "8012:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ai-service:
+    build:
+      context: ./services/ai-service
+    container_name: ai-travel-ai-service
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: llama-3.3-70b-versatile
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-local-dev-secret}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+    ports:
+      - "8013:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  utility-service:
+    build:
+      context: ./services/utility-service
+    container_name: ai-travel-utility-service
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY:-}
+      GEOAPIFY_API_KEY: ${GEOAPIFY_API_KEY:-}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-local-dev-secret}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+    ports:
+      - "8014:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Nginx reverse proxy — replaces the custom FastAPI api-gateway.
+  # In AWS production, this role is filled by an ALB with path-based listener rules.
+  nginx-proxy:
+    image: nginx:1.27-alpine
+    container_name: ai-travel-nginx-proxy
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      user-service:
+        condition: service_healthy
+      travel-service:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+      utility-service:
+        condition: service_healthy
+    ports:
+      - "8080:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8000/health > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api}
+    container_name: ai-travel-frontend
+    depends_on:
+      nginx-proxy:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/ > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  user_db_data:
+  travel_db_data:
+

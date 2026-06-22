@@ -1,0 +1,24 @@
+name: Build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  security:
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/reusable-security.yml@main
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/reusable-build.yml@main
+    if: github.event_name == 'push'
+    with:
+      environment: prod
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ai-travel-github-actions-prod
