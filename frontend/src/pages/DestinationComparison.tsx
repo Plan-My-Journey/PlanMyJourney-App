@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { GitCompare, Sparkles } from "lucide-react";
 
 import { api } from "../api/client";
+import DestinationAutocomplete from "../components/DestinationAutocomplete";
 import PageHeader from "../components/PageHeader";
 import { DestinationComparison as DestinationComparisonType } from "../types";
 
@@ -50,11 +51,11 @@ export default function DestinationComparison() {
       <form onSubmit={handleSubmit} className="mb-5 grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
         <label className="block space-y-2">
           <span className="label">Destination A</span>
-          <input className="field" value={destinationA} onChange={(event) => setDestinationA(event.target.value)} required />
+          <DestinationAutocomplete value={destinationA} onChange={setDestinationA} placeholder="Start typing a city..." required />
         </label>
         <label className="block space-y-2">
           <span className="label">Destination B</span>
-          <input className="field" value={destinationB} onChange={(event) => setDestinationB(event.target.value)} required />
+          <DestinationAutocomplete value={destinationB} onChange={setDestinationB} placeholder="Start typing a city..." required />
         </label>
         <button type="submit" className="primary-button" disabled={mutation.isPending}>
           <GitCompare className="h-4 w-4" aria-hidden="true" />

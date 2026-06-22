@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     service_name: str = "utility-service"
     openweather_api_key: str = ""
     geoapify_api_key: str = ""
-    google_maps_api_key: str = ""
     jwt_secret_key: str = "change-this-local-dev-secret"
     jwt_algorithm: str = "HS256"
     cors_origins: str = "http://localhost:5173,http://localhost:8080"

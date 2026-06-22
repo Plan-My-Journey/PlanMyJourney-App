@@ -14,7 +14,7 @@ Organization: [Plan-My-Journey](https://github.com/orgs/Plan-My-Journey)
 | Repository | Purpose |
 |---|---|
 | [planmyjourney-terraform](https://github.com/Plan-My-Journey/planmyjourney-terraform) | VPC, EKS, RDS, Cognito, CloudFront, IRSA |
-| [planmyjourney-gitops](https://github.com/Plan-My-Journey/planmyjourney-gitops) | Helm, Kustomize, Flux manifests |
+| [planmyjourney-gitops](https://github.com/Plan-My-Journey/planmyjourney-gitops) | Helm, Kustomize, ArgoCD manifests |
 | [planmyjourney-workflows](https://github.com/Plan-My-Journey/planmyjourney-workflows) | Reusable GitHub Actions |
 
 ## Local Development
@@ -37,4 +37,4 @@ VITE_COGNITO_REDIRECT_URI=https://invest-iq.online/callback
 ## CI/CD
 
 - `build.yml` — lint, test, Trivy scan, ECR push
-- `deploy.yml` — updates GitOps repo image tags (Flux reconciles)
+- `deploy.yml` — updates GitOps repo image tags (ArgoCD reconciles)

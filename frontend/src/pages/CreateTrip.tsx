@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Sparkles } from "lucide-react";
 
 import { api } from "../api/client";
+import DestinationAutocomplete from "../components/DestinationAutocomplete";
 import PageHeader from "../components/PageHeader";
 import { ItineraryResponse } from "../types";
 
@@ -51,7 +52,7 @@ export default function CreateTrip() {
         <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-zinc-200 bg-white p-4">
           <label className="block space-y-2">
             <span className="label">Destination</span>
-            <input className="field" value={destination} onChange={(event) => setDestination(event.target.value)} required />
+            <DestinationAutocomplete value={destination} onChange={setDestination} placeholder="Start typing a city..." required />
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">

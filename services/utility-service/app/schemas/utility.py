@@ -37,3 +37,38 @@ class PlacesResponse(BaseModel):
     city: str
     places: list[PlaceRecommendation]
     source: str
+
+
+class GeocodeSuggestion(BaseModel):
+    label: str
+    city: str
+    country: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    place_id: str | None = None
+
+
+class GeocodeAutocompleteResponse(BaseModel):
+    query: str
+    suggestions: list[GeocodeSuggestion]
+    source: str
+
+
+class GeocodeSearchResponse(BaseModel):
+    query: str
+    results: list[GeocodeSuggestion]
+    source: str
+
+
+class RoutePoint(BaseModel):
+    latitude: float
+    longitude: float
+
+
+class RoutingResponse(BaseModel):
+    mode: str
+    distance_meters: float | None = None
+    duration_seconds: float | None = None
+    origin: RoutePoint
+    destination: RoutePoint
+    source: str

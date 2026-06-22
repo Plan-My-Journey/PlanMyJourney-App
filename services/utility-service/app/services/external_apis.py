@@ -5,6 +5,11 @@ import httpx
 
 from app.core.config import settings
 
+GEOAPIFY_GEOCODE_URL = "https://api.geoapify.com/v1/geocode/search"
+GEOAPIFY_AUTOCOMPLETE_URL = "https://api.geoapify.com/v1/geocode/autocomplete"
+GEOAPIFY_ROUTING_URL = "https://api.geoapify.com/v1/routing"
+GEOAPIFY_PLACES_URL = "https://api.geoapify.com/v2/places"
+
 
 class UtilityApiService:
     async def weather(self, city: str) -> dict[str, Any]:
@@ -46,24 +51,7 @@ class UtilityApiService:
             if geoapify_hotels is not None:
                 return {"city": city, "hotels": geoapify_hotels, "source": "geoapify"}
 
-        if not settings.google_maps_api_key:
-            return self._fallback_hotels(city)
-        data = await self._google_text_search(f"hotels in {city}", "lodging")
-        if data is None:
-            return self._fallback_hotels(city)
-
-        hotels = []
-        for item in data.get("results", [])[:8]:
-            hotels.append(
-                {
-                    "name": item.get("name", "Hotel"),
-                    "address": item.get("formatted_address", "Address unavailable"),
-                    "rating": item.get("rating"),
-                    "price_level": item.get("price_level"),
-                    "open_now": item.get("opening_hours", {}).get("open_now"),
-                }
-            )
-        return {"city": city, "hotels": hotels, "source": "google_places"}
+        return self._fallback_hotels(city)
 
     async def places(self, city: str) -> dict[str, Any]:
         if settings.geoapify_api_key:
@@ -75,24 +63,113 @@ class UtilityApiService:
             if geoapify_places is not None:
                 return {"city": city, "places": geoapify_places, "source": "geoapify"}
 
-        if not settings.google_maps_api_key:
-            return self._fallback_places(city)
-        data = await self._google_text_search(f"top tourist attractions in {city}", "tourist_attraction")
-        if data is None:
-            return self._fallback_places(city)
+        return self._fallback_places(city)
 
-        places = []
-        for item in data.get("results", [])[:10]:
-            places.append(
-                {
-                    "name": item.get("name", "Place"),
-                    "address": item.get("formatted_address", "Address unavailable"),
-                    "rating": item.get("rating"),
-                    "categories": item.get("types", [])[:4],
-                    "place_id": item.get("place_id"),
-                }
-            )
-        return {"city": city, "places": places, "source": "google_places"}
+    async def geocode_autocomplete(self, text: str, limit: int = 5) -> dict[str, Any]:
+        query = text.strip()
+        if len(query) < 3:
+            return {"query": query, "suggestions": [], "source": "local_fallback"}
+
+        if not settings.geoapify_api_key:
+            return {"query": query, "suggestions": self._fallback_autocomplete(query), "source": "local_fallback"}
+
+        params = {
+            "text": query,
+            "limit": min(max(limit, 1), 8),
+            "apiKey": settings.geoapify_api_key,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
+                response = await client.get(GEOAPIFY_AUTOCOMPLETE_URL, params=params)
+                response.raise_for_status()
+            suggestions = []
+            for feature in response.json().get("features", []):
+                properties = feature.get("properties", {})
+                label = properties.get("formatted") or properties.get("address_line1")
+                if not label:
+                    continue
+                suggestions.append(
+                    {
+                        "label": label,
+                        "city": properties.get("city") or properties.get("name") or label,
+                        "country": properties.get("country"),
+                        "latitude": properties.get("lat"),
+                        "longitude": properties.get("lon"),
+                        "place_id": properties.get("place_id"),
+                    }
+                )
+            return {"query": query, "suggestions": suggestions, "source": "geoapify"}
+        except (httpx.HTTPError, KeyError, TypeError, ValueError):
+            return {"query": query, "suggestions": self._fallback_autocomplete(query), "source": "local_fallback"}
+
+    async def geocode_search(self, text: str) -> dict[str, Any]:
+        query = text.strip()
+        if not query:
+            return {"query": query, "results": [], "source": "local_fallback"}
+
+        if not settings.geoapify_api_key:
+            return {"query": query, "results": [], "source": "local_fallback"}
+
+        params = {"text": query, "limit": 1, "apiKey": settings.geoapify_api_key}
+        try:
+            async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
+                response = await client.get(GEOAPIFY_GEOCODE_URL, params=params)
+                response.raise_for_status()
+            results = []
+            for feature in response.json().get("features", []):
+                properties = feature.get("properties", {})
+                results.append(
+                    {
+                        "label": properties.get("formatted") or query,
+                        "city": properties.get("city") or properties.get("name") or query,
+                        "country": properties.get("country"),
+                        "latitude": properties.get("lat"),
+                        "longitude": properties.get("lon"),
+                        "place_id": properties.get("place_id"),
+                    }
+                )
+            return {"query": query, "results": results, "source": "geoapify"}
+        except (httpx.HTTPError, KeyError, TypeError, ValueError):
+            return {"query": query, "results": [], "source": "local_fallback"}
+
+    async def routing(
+        self,
+        origin_lat: float,
+        origin_lon: float,
+        destination_lat: float,
+        destination_lon: float,
+        mode: str = "drive",
+    ) -> dict[str, Any]:
+        allowed_modes = {"drive", "walk", "bicycle", "transit"}
+        travel_mode = mode if mode in allowed_modes else "drive"
+
+        if not settings.geoapify_api_key:
+            return self._fallback_routing(origin_lat, origin_lon, destination_lat, destination_lon, travel_mode)
+
+        params = {
+            "waypoints": f"{origin_lat},{origin_lon}|{destination_lat},{destination_lon}",
+            "mode": travel_mode,
+            "apiKey": settings.geoapify_api_key,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
+                response = await client.get(GEOAPIFY_ROUTING_URL, params=params)
+                response.raise_for_status()
+            features = response.json().get("features", [])
+            if not features:
+                return self._fallback_routing(origin_lat, origin_lon, destination_lat, destination_lon, travel_mode)
+
+            properties = features[0].get("properties", {})
+            return {
+                "mode": travel_mode,
+                "distance_meters": properties.get("distance"),
+                "duration_seconds": properties.get("time"),
+                "origin": {"latitude": origin_lat, "longitude": origin_lon},
+                "destination": {"latitude": destination_lat, "longitude": destination_lon},
+                "source": "geoapify",
+            }
+        except (httpx.HTTPError, KeyError, TypeError, ValueError):
+            return self._fallback_routing(origin_lat, origin_lon, destination_lat, destination_lon, travel_mode)
 
     async def _geoapify_places(self, city: str, categories: str, limit: int) -> list[dict[str, Any]] | None:
         coordinates = await self._geoapify_city_coordinates(city)
@@ -109,7 +186,7 @@ class UtilityApiService:
         }
         try:
             async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
-                response = await client.get("https://api.geoapify.com/v2/places", params=params)
+                response = await client.get(GEOAPIFY_PLACES_URL, params=params)
                 response.raise_for_status()
             features = response.json().get("features", [])
             results = []
@@ -147,7 +224,7 @@ class UtilityApiService:
         }
         try:
             async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
-                response = await client.get("https://api.geoapify.com/v1/geocode/search", params=params)
+                response = await client.get(GEOAPIFY_GEOCODE_URL, params=params)
                 response.raise_for_status()
             features = response.json().get("features", [])
             if not features:
@@ -155,23 +232,6 @@ class UtilityApiService:
             properties = features[0].get("properties", {})
             return float(properties["lat"]), float(properties["lon"])
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
-            return None
-
-    async def _google_text_search(self, query: str, place_type: str) -> dict[str, Any] | None:
-        params = {
-            "query": query,
-            "type": place_type,
-            "key": settings.google_maps_api_key,
-        }
-        try:
-            async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
-                response = await client.get("https://maps.googleapis.com/maps/api/place/textsearch/json", params=params)
-                response.raise_for_status()
-            data = response.json()
-            if data.get("status") not in {"OK", "ZERO_RESULTS"}:
-                return None
-            return data
-        except (httpx.HTTPError, ValueError):
             return None
 
     @staticmethod
@@ -211,5 +271,28 @@ class UtilityApiService:
                 {"name": f"{city.title()} Food Market", "address": f"Market district, {city.title()}", "rating": 4.5, "categories": ["food", "local_culture"], "place_id": None},
                 {"name": f"{city.title()} Viewpoint", "address": f"Scenic area, {city.title()}", "rating": 4.4, "categories": ["outdoors", "photography"], "place_id": None},
             ],
+            "source": "local_fallback",
+        }
+
+    @staticmethod
+    def _fallback_autocomplete(query: str) -> list[dict[str, Any]]:
+        return [{"label": query.title(), "city": query.title(), "country": None, "latitude": None, "longitude": None, "place_id": None}]
+
+    @staticmethod
+    def _fallback_routing(
+        origin_lat: float,
+        origin_lon: float,
+        destination_lat: float,
+        destination_lon: float,
+        mode: str,
+    ) -> dict[str, Any]:
+        distance = ((destination_lat - origin_lat) ** 2 + (destination_lon - origin_lon) ** 2) ** 0.5 * 111_000
+        speed_mps = 1.4 if mode == "walk" else 13.9
+        return {
+            "mode": mode,
+            "distance_meters": round(distance),
+            "duration_seconds": round(distance / speed_mps),
+            "origin": {"latitude": origin_lat, "longitude": origin_lon},
+            "destination": {"latitude": destination_lat, "longitude": destination_lon},
             "source": "local_fallback",
         }

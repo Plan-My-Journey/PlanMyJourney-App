@@ -79,8 +79,8 @@ services:
     container_name: ai-travel-ai-service
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-local}
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
-      GROQ_MODEL: llama-3.3-70b-versatile
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-amazon.nova-pro-v1:0}
+      BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-local-dev-secret}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
     ports:
@@ -99,7 +99,6 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-local}
       OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY:-}
       GEOAPIFY_API_KEY: ${GEOAPIFY_API_KEY:-}
-      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-local-dev-secret}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
     ports:
