@@ -15,7 +15,9 @@ LOCAL_ONLY_VALUES = ("localhost", "127.0.0.1", "host.docker.internal")
 class Settings(BaseSettings):
     environment: str = "local"
     service_name: str = "ai-service"
-    # AWS Bedrock — replaces Groq; credentials come from IAM (IRSA in EKS)
+    log_level: str = "info"
+    aws_region: str = "us-east-1"
+    # AWS Bedrock — credentials come from IAM (IRSA in EKS)
     bedrock_model_id: str = "amazon.nova-pro-v1:0"
     bedrock_region: str = "us-east-1"
     bedrock_max_tokens: int = 1024
@@ -23,6 +25,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     cors_origins: str = "http://localhost:5173,http://localhost:8080"
     rate_limit: str = "90/minute"
+    sqs_queue_url: str = ""
+    jobs_table_name: str = ""
+    async_jobs_enabled: bool = False
+    worker_mode: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

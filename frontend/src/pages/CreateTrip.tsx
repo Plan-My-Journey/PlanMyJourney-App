@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Sparkles } from "lucide-react";
 
 import { api } from "../api/client";
+import { requestItinerary } from "../api/asyncJobs";
 import DestinationAutocomplete from "../components/DestinationAutocomplete";
 import PageHeader from "../components/PageHeader";
 import { ItineraryResponse } from "../types";
@@ -29,8 +30,7 @@ export default function CreateTrip() {
         status: "planned"
       };
       await api.post("/trips", payload);
-      const { data } = await api.post<ItineraryResponse>("/ai/itinerary", payload);
-      return data;
+      return requestItinerary(payload);
     },
     onSuccess: (data) => {
       setItinerary(data);

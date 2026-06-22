@@ -67,3 +67,16 @@ class PackingCategory(BaseModel):
 
 class PackingListResponse(BaseModel):
     packing_list: list[PackingCategory]
+
+
+class JobAcceptedResponse(BaseModel):
+    job_id: str
+    status: str = "queued"
+
+
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    job_type: str | None = None
+    result: dict | None = None
+    error: str | None = None

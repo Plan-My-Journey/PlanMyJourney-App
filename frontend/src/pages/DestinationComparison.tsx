@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { GitCompare, Sparkles } from "lucide-react";
 
 import { api } from "../api/client";
+import { requestCompare } from "../api/asyncJobs";
 import DestinationAutocomplete from "../components/DestinationAutocomplete";
 import PageHeader from "../components/PageHeader";
 import { DestinationComparison as DestinationComparisonType } from "../types";
@@ -30,12 +31,10 @@ export default function DestinationComparison() {
 
   const mutation = useMutation({
     mutationFn: async () =>
-      (
-        await api.post<DestinationComparisonType>("/ai/compare", {
-          destination_a: destinationA,
-          destination_b: destinationB
-        })
-      ).data,
+      requestCompare({
+        destination_a: destinationA,
+        destination_b: destinationB
+      }) as Promise<DestinationComparisonType>,
     onSuccess: setComparison
   });
 
