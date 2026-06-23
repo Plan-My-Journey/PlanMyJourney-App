@@ -215,3 +215,4 @@ jobs:
       sast: ${{ needs.sast.result }}
       sca: ${{ needs.sca.result }}
       trivy: ${{ needs.trivy.result }}
+# ci: trigger dev pipelines
