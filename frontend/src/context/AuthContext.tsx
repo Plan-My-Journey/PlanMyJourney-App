@@ -60,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: payload.sub,
           name: payload.name || payload.email || "Traveler",
           email: payload.email || "",
+          created_at: new Date().toISOString(),
         };
         localStorage.setItem(TOKEN_STORAGE_KEY, tokens.access_token);
         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
