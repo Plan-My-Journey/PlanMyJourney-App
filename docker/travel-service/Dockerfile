@@ -23,9 +23,8 @@ RUN cat requirements.txt > requirements-prod.txt && \
     echo "python-json-logger==2.0.7" >> requirements-prod.txt && \
     echo "python-dotenv==1.0.1" >> requirements-prod.txt && \
     echo "alembic==1.13.1" >> requirements-prod.txt && \
-    echo "psycopg2-binary==2.9.9" >> requirements-prod.txt
-
-RUN pip install --no-cache-dir --user -r requirements-prod.txt
+    echo "psycopg2-binary==2.9.9" >> requirements-prod.txt && \
+    pip install --no-cache-dir --user -r requirements-prod.txt
 
 # Stage 2: Runtime
 FROM python:3.12-slim AS runtime

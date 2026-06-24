@@ -28,7 +28,7 @@ const navItems = [
   { to: "/profile", label: "Profile", icon: User }
 ];
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({ onNavigate }: { readonly onNavigate?: () => void }) {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
 
@@ -81,7 +81,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function PageShell({ children }: { children: ReactNode }) {
+function PageShell({ children }: { readonly children: ReactNode }) {
   return <main className="min-h-screen flex-1 overflow-y-auto bg-zinc-100 px-4 py-5 md:px-6 lg:px-8">{children}</main>;
 }
 

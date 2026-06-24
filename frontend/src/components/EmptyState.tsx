@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 
-export default function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
+export default function EmptyState({ title, children }: { readonly title: string; readonly children?: ReactNode }) {
   return (
     <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-6 text-center">
       <p className="text-sm font-semibold text-zinc-900">{title}</p>

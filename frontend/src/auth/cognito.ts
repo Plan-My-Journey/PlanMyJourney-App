@@ -13,8 +13,8 @@ export function getCognitoConfig(): CognitoConfig {
     userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID || "",
     clientId: import.meta.env.VITE_COGNITO_CLIENT_ID || "",
     domain: import.meta.env.VITE_COGNITO_DOMAIN || "",
-    redirectUri: import.meta.env.VITE_COGNITO_REDIRECT_URI || `${window.location.origin}/callback`,
-    logoutUri: import.meta.env.VITE_COGNITO_LOGOUT_URI || window.location.origin,
+    redirectUri: import.meta.env.VITE_COGNITO_REDIRECT_URI || `${globalThis.location.origin}/callback`,
+    logoutUri: import.meta.env.VITE_COGNITO_LOGOUT_URI || globalThis.location.origin,
   };
 }
 

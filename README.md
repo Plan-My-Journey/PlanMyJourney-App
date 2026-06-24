@@ -20,9 +20,13 @@ Organization: [Plan-My-Journey](https://github.com/orgs/Plan-My-Journey)
 ## Local Development
 
 ```bash
+cp .env.example .env
+# Edit .env and set USER_DB_PASSWORD, TRAVEL_DB_PASSWORD, and JWT_SECRET_KEY
 docker compose up --build
 cd frontend && npm ci && npm run dev
 ```
+
+Database credentials are loaded from `.env` — they are not hardcoded in `docker-compose.yml`.
 
 ## Cognito Environment Variables (frontend)
 

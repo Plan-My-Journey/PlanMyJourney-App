@@ -8,11 +8,11 @@ type Suggestion = {
 };
 
 type Props = {
-  id?: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  required?: boolean;
+  readonly id?: string;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly placeholder?: string;
+  readonly required?: boolean;
 };
 
 export default function DestinationAutocomplete({ id, value, onChange, placeholder, required }: Props) {
@@ -31,7 +31,7 @@ export default function DestinationAutocomplete({ id, value, onChange, placehold
       return;
     }
 
-    const timer = window.setTimeout(async () => {
+    const timer = globalThis.setTimeout(async () => {
       try {
         const { data } = await api.get<{ suggestions: Suggestion[] }>("/utility/geocode/autocomplete", {
           params: { text: trimmed, limit: 5 }
@@ -43,7 +43,7 @@ export default function DestinationAutocomplete({ id, value, onChange, placehold
       }
     }, 350);
 
-    return () => window.clearTimeout(timer);
+    return () => globalThis.clearTimeout(timer);
   }, [query]);
 
   return (
@@ -60,7 +60,7 @@ export default function DestinationAutocomplete({ id, value, onChange, placehold
           onChange(event.target.value);
         }}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
-        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        onBlur={() => globalThis.setTimeout(() => setOpen(false), 150)}
       />
       {open && suggestions.length > 0 && (
         <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-zinc-200 bg-white shadow-lg">

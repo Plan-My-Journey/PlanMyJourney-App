@@ -7,7 +7,17 @@ import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { BudgetSummary, HotelResponse, Trip, WeatherResponse } from "../types";
 
-function StatCard({ label, value, tone, icon: Icon }: { label: string; value: string; tone: string; icon: typeof WalletCards }) {
+function StatCard({
+  label,
+  value,
+  tone,
+  icon: Icon
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly tone: string;
+  readonly icon: typeof WalletCards;
+}) {
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4">
       <div className="flex items-center justify-between gap-3">

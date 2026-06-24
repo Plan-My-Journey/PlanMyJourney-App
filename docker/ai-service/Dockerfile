@@ -15,14 +15,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt .
 
-# Create requirements with production additions
 RUN cat requirements.txt > requirements-prod.txt && \
     echo "gunicorn==21.2.0" >> requirements-prod.txt && \
     echo "uvicorn[standard]==0.29.0" >> requirements-prod.txt && \
     echo "python-json-logger==2.0.7" >> requirements-prod.txt && \
-    echo "python-dotenv==1.0.1" >> requirements-prod.txt
-
-RUN pip install --no-cache-dir --user -r requirements-prod.txt
+    echo "python-dotenv==1.0.1" >> requirements-prod.txt && \
+    pip install --no-cache-dir --user -r requirements-prod.txt
 
 # Stage 2: Runtime
 FROM python:3.12-slim AS runtime
