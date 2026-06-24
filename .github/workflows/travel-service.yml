@@ -113,6 +113,11 @@ jobs:
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_smoke-test.yml@main
     with:
       target-environment: dev
+      ecr-image: ai-travel/travel-service
+      ecr-tag: sha-${{ github.sha }}
+    secrets:
+      AWS_DEPLOY_ROLE_ARN_DEV: ${{ secrets.AWS_DEPLOY_ROLE_ARN_DEV }}
+      AWS_DEPLOY_ROLE_ARN_PROD: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}
 
   record-artifact-validation:
     if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
