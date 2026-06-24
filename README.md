@@ -28,6 +28,8 @@ cd frontend && npm ci && npm run dev
 
 Database credentials are loaded from `.env` — they are not hardcoded in `docker-compose.yml`.
 
+<!-- ci: trigger frontend pipeline -->
+
 ## Cognito Environment Variables (frontend)
 
 ```env
