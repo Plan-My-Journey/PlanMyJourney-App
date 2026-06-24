@@ -75,11 +75,11 @@ jobs:
 
   release-backend:
     needs: [detect-changes, resolve-base]
+    if: needs.detect-changes.outputs.container-matrix != '[]'
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
-    if: matrix.deploy-type == 'container'
+        include: ${{ fromJson(needs.detect-changes.outputs.container-matrix) }}
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_release-backend-service.yml@main
     with:
       service-name: ${{ matrix.service }}
@@ -122,11 +122,11 @@ jobs:
 
   gitops-prod:
     needs: [prod-approval, detect-changes, resolve-base]
+    if: needs.detect-changes.outputs.container-matrix != '[]'
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
-    if: matrix.deploy-type == 'container'
+        include: ${{ fromJson(needs.detect-changes.outputs.container-matrix) }}
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_cd.yml@main
     with:
       chart: ${{ matrix.chart }}

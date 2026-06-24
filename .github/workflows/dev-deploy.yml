@@ -38,11 +38,11 @@ jobs:
 
   deploy-backend:
     needs: [detect-changes, prepare-tag]
+    if: needs.detect-changes.outputs.container-matrix != '[]'
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
-    if: matrix.deploy-type == 'container'
+        include: ${{ fromJson(needs.detect-changes.outputs.container-matrix) }}
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_dev-deploy-backend.yml@main
     with:
       service-name: ${{ matrix.service }}
