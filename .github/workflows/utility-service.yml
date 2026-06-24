@@ -59,7 +59,7 @@ jobs:
     with:
       service-name: utility-service
       dockerfile: docker/utility-service/Dockerfile
-      context: .
+      context: services/utility-service
 
   quality-gate:
     if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
@@ -79,7 +79,7 @@ jobs:
       image-name: ai-travel/utility-service
       tag: sha-${{ github.sha }}
       dockerfile: docker/utility-service/Dockerfile
-      context: .
+      context: services/utility-service
       deploy-environment: dev
     secrets:
       AWS_DEPLOY_ROLE_ARN_DEV: ${{ secrets.AWS_DEPLOY_ROLE_ARN_DEV }}
