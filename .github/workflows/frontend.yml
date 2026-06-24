@@ -91,6 +91,11 @@ jobs:
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_smoke-test.yml@main
     with:
       target-environment: dev
+      s3-bucket: ${{ vars.FRONTEND_BUCKET_DEV || 'ai-travel-frontend-dev' }}
+      skip-api-check: true
+    secrets:
+      AWS_DEPLOY_ROLE_ARN_DEV: ${{ secrets.AWS_DEPLOY_ROLE_ARN_DEV }}
+      AWS_DEPLOY_ROLE_ARN_PROD: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}
 
   record-artifact-validation:
     if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
@@ -125,7 +130,7 @@ jobs:
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_frontend-s3-promote.yml@main
     with:
       source-bucket: ${{ vars.FRONTEND_BUCKET_DEV || 'ai-travel-frontend-dev' }}
-      destination-bucket: ${{ vars.FRONTEND_BUCKET_PROD || 'ai-travel-frontend-prod' }}
+      destination-bucket: ${{ vars.FRONTEND_BUCKET_PROD || 'invest-iq-online-frontend' }}
       cloudfront-distribution-id: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID_PROD || 'E22TQX283Z4MH2' }}
     secrets:
       AWS_DEPLOY_ROLE_ARN_DEV: ${{ secrets.AWS_DEPLOY_ROLE_ARN_DEV }}
