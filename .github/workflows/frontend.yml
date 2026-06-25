@@ -1,0 +1,139 @@
+name: CI/CD - frontend
+
+# Pull request to dev or main -> validate only (SAST -> build image + Trivy), then PR comment
+# Push to dev              -> S3 dev deploy with SHA artifact tag
+# Merge to main            -> nothing runs (no push trigger on main)
+# workflow_dispatch        -> version guard -> prod approval -> S3 promote -> smoke test
+
+on:
+  pull_request:
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "frontend/**"
+      - "docker/frontend/**"
+      - ".github/workflows/frontend.yml"
+  push:
+    branches: [dev]
+    paths:
+      - "frontend/**"
+      - "docker/frontend/**"
+      - ".github/workflows/frontend.yml"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 1.2.3)"
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  guard-main:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure release runs from main
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::Release workflow must be run from the main branch."
+            exit 1
+          fi
+
+  version-check:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [guard-main]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_version-check.yml@main
+    with:
+      service-name: frontend
+      version: ${{ inputs.version }}
+
+  sast:
+    if: github.event_name == 'pull_request'
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_sast.yml@main
+    with:
+      service-path: frontend
+      fail-on-quality-gate: true
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  trivy:
+    if: github.event_name == 'pull_request'
+    needs: [sast]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_docker-build.yml@main
+    with:
+      service-name: frontend
+      dockerfile: docker/frontend/Dockerfile
+      context: frontend
+
+  notify-sast:
+    if: ${{ always() && github.event_name == 'pull_request' && needs.sast.outputs.quality-gate-failed == 'true' }}
+    needs: [sast]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_notify.yml@main
+    with:
+      subject: "[SAST] SonarCloud quality gate failed — frontend"
+      body: "The SonarCloud SAST quality gate failed on this pull request. Review the findings in SonarCloud before merging."
+      service-name: frontend
+    secrets:
+      BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+      NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+
+  pr-comment:
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: [sast, trivy]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_pr-comment.yml@main
+    with:
+      service-name: frontend
+      sast: ${{ needs.sast.result }}
+      sca: skipped
+      trivy: ${{ needs.trivy.result }}
+
+  deploy-dev:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_dev-deploy-frontend.yml@main
+    with:
+      artifact-tag: ${{ github.sha }}
+      frontend-bucket: ${{ vars.FRONTEND_BUCKET_DEV || 'ai-travel-frontend-dev' }}
+      cloudfront-distribution-id: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID_DEV || 'PLACEHOLDER' }}
+      api-url: https://dev-api.invest-iq.online/api
+    secrets:
+      AWS_DEPLOY_ROLE_ARN_DEV: ${{ secrets.AWS_DEPLOY_ROLE_ARN_DEV }}
+      AWS_DEPLOY_ROLE_ARN_PROD: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}
+
+  prod-approval:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [version-check]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_production-gate.yml@main
+    with:
+      service-name: frontend
+
+  release:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [prod-approval]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_release-frontend.yml@main
+    with:
+      version: ${{ inputs.version }}
+      source-bucket: ${{ vars.FRONTEND_BUCKET_DEV || 'ai-travel-frontend-dev' }}
+      destination-bucket: ${{ vars.FRONTEND_BUCKET_PROD || 'invest-iq-online-frontend' }}
+      cloudfront-distribution-id: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID_PROD || 'E22TQX283Z4MH2' }}
+    secrets:
+      AWS_DEPLOY_ROLE_ARN_DEV: ${{ secrets.AWS_DEPLOY_ROLE_ARN_DEV }}
+      AWS_DEPLOY_ROLE_ARN_PROD: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}
+
+  smoke-test-prod:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [release]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_smoke-test.yml@main
+    with:
+      target-environment: prod
+    secrets:
+      AWS_DEPLOY_ROLE_ARN_DEV: ${{ secrets.AWS_DEPLOY_ROLE_ARN_DEV }}
+      AWS_DEPLOY_ROLE_ARN_PROD: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}
