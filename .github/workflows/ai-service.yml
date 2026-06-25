@@ -1,46 +1,65 @@
 name: CI/CD - ai-service
 
-# dev branch push: full scan → ECR → GitOps dev → ArgoCD dev → smoke test
-# main branch push: production approval → promote dev image → GitOps prod → ArgoCD prod
-# pull_request: validation only (no deploy)
+# Pull request to dev or main -> validate only (SAST -> SCA -> build image + Trivy)
+# Push to dev              -> build, push SHA tag to ECR, GitOps dev deploy (+ ai-worker)
+# Merge to main            -> nothing runs (no push trigger on main)
+# workflow_dispatch        -> version guard -> publish semver -> git tag -> prod CD
 
 on:
   pull_request:
     branches: [dev, main]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "services/ai-service/**"
       - "services/ai-service/app/worker/**"
       - "docker/ai-service/**"
       - ".github/workflows/ai-service.yml"
   push:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - "services/ai-service/**"
       - "services/ai-service/app/worker/**"
       - "docker/ai-service/**"
       - ".github/workflows/ai-service.yml"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 1.2.3)"
+        required: true
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
   pull-requests: write
   statuses: write
 
 jobs:
-  lint:
-    if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_lint.yml@main
+  guard-main:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure release runs from main
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::Release workflow must be run from the main branch."
+            exit 1
+          fi
+
+  version-check:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [guard-main]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_version-check.yml@main
     with:
-      service-path: services/ai-service
-      runtime: python
+      service-name: ai-service
+      version: ${{ inputs.version }}
 
   sast:
-    if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
-    needs: [lint]
+    if: github.event_name == 'pull_request'
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_sast.yml@main
     with:
       service-path: services/ai-service
@@ -48,170 +67,126 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   sca:
-    if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+    if: github.event_name == 'pull_request'
     needs: [sast]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_sca.yml@main
     with:
       service-name: ai-service
       service-path: services/ai-service
-      runtime: python
     secrets:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
   trivy:
-    if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+    if: github.event_name == 'pull_request'
     needs: [sca]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_docker-build.yml@main
     with:
       service-name: ai-service
       dockerfile: docker/ai-service/Dockerfile
-      context: .
-
-  quality-gate:
-    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-    needs: [lint, sast, sca, trivy]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_quality-gate.yml@main
-    with:
-      lint-result: ${{ needs.lint.result }}
-      sast-result: ${{ needs.sast.result }}
-      sca-result: ${{ needs.sca.result }}
-      trivy-result: ${{ needs.trivy.result }}
-
-  publish:
-    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-    needs: [quality-gate]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_docker-publish.yml@main
-    with:
-      image-name: ai-travel/ai-service
-      tag: sha-${{ github.sha }}
-      dockerfile: docker/ai-service/Dockerfile
-      context: .
-      deploy-environment: dev
-    secrets:
-      AWS_DEPLOY_ROLE_ARN_DEV: ${{ secrets.AWS_DEPLOY_ROLE_ARN_DEV }}
-      AWS_DEPLOY_ROLE_ARN_PROD: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}
-
-  cd-dev:
-    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-    needs: [publish]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_cd.yml@main
-    with:
-      chart: ai-service
-      image-tag: sha-${{ github.sha }}
-      deploy-environment: dev
-      values-file: values-dev.yaml
-      additional-charts: ai-worker
-    secrets:
-      GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
-
-  argocd-dev:
-    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-    needs: [cd-dev]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_argocd-sync.yml@main
-    with:
-      deploy-environment: dev
-      app-name: dev-ai-service
-      additional-apps: dev-ai-worker
-    secrets:
-      ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-
-  smoke-test:
-    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-    needs: [argocd-dev]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_smoke-test.yml@main
-    with:
-      target-environment: dev
-
-  record-artifact-validation:
-    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-    needs: [smoke-test]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_record-artifact-validation.yml@main
-    with:
-      service-name: ai-service
-      artifact-tag: sha-${{ github.sha }}
-      artifact-type: container
-
-  artifact-validation:
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_artifact-validation.yml@main
-    with:
-      service-name: ai-service
-      artifact-type: container
-      chart: ai-service
-      image-name: ai-travel/ai-service
-      argocd-app-name: dev-ai-service
-    secrets:
-      AWS_DEPLOY_ROLE_ARN_DEV: ${{ secrets.AWS_DEPLOY_ROLE_ARN_DEV }}
-      ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-
-  prod-approval:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_production-gate.yml@main
-    with:
-      service-name: ai-service
-
-  read-dev-tag:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [prod-approval]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_read-gitops-image-tag.yml@main
-    with:
-      chart: ai-service
-      values-file: values-dev.yaml
-
-  promote:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [read-dev-tag]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_docker-promote.yml@main
-    with:
-      image-name: ai-travel/ai-service
-      source-tag: ${{ needs.read-dev-tag.outputs.image-tag }}
-    secrets:
-      AWS_DEPLOY_ROLE_ARN_PROD: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}
-
-  cd-prod:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [promote]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_cd.yml@main
-    with:
-      chart: ai-service
-      image-tag: ${{ needs.promote.outputs.image-tag }}
-      deploy-environment: prod
-      values-file: values-prod.yaml
-      additional-charts: ai-worker
-    secrets:
-      GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
+      context: services/ai-service
 
   notify-sast:
-    if: ${{ always() && github.event_name == 'pull_request' && github.base_ref == 'dev' && needs.sast.outputs.quality-gate-failed == 'true' }}
+    if: ${{ always() && github.event_name == 'pull_request' && needs.sast.outputs.quality-gate-failed == 'true' }}
     needs: [sast]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_notify.yml@main
     with:
       subject: "[SAST] SonarCloud quality gate failed — ai-service"
-      body: "SonarCloud quality gate failed on this pull request."
+      body: "The SonarCloud SAST quality gate failed on this pull request. Review the findings in SonarCloud before merging."
       service-name: ai-service
     secrets:
       BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
       NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
 
   notify-sca:
-    if: ${{ always() && github.event_name == 'pull_request' && github.base_ref == 'dev' && (needs.sca.outputs.critical-found == 'true' || needs.sca.result == 'failure') }}
+    if: ${{ always() && github.event_name == 'pull_request' && (needs.sca.outputs.critical-found == 'true' || needs.sca.result == 'failure') }}
     needs: [sca]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_notify.yml@main
     with:
-      subject: "[Snyk] Critical vulnerabilities — ai-service"
-      body: "Snyk found CRITICAL dependency vulnerabilities."
+      subject: "[Snyk] Critical dependency vulnerabilities — ai-service"
+      body: "Snyk SCA found CRITICAL dependency vulnerabilities on this pull request. Review and remediate before merging."
       service-name: ai-service
     secrets:
       BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
       NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
 
   pr-comment:
-    if: ${{ always() && github.event_name == 'pull_request' && github.base_ref == 'dev' }}
-    needs: [lint, sast, sca, trivy]
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: [sast, sca, trivy]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_pr-comment.yml@main
     with:
       service-name: ai-service
-      lint: ${{ needs.lint.result }}
       sast: ${{ needs.sast.result }}
       sca: ${{ needs.sca.result }}
       trivy: ${{ needs.trivy.result }}
+
+  deploy-dev:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_dev-deploy-backend.yml@main
+    with:
+      service-name: ai-service
+      chart: ai-service
+      image-name: ai-travel/ai-service
+      dockerfile: docker/ai-service/Dockerfile
+      context: services/ai-service
+      image-tag: ${{ github.sha }}
+      argocd-app: dev-ai-service
+      additional-charts: ai-worker
+    secrets:
+      AWS_DEPLOY_ROLE_ARN_DEV: ${{ secrets.AWS_DEPLOY_ROLE_ARN_DEV }}
+      AWS_DEPLOY_ROLE_ARN_PROD: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}
+      GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
+      ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+
+  publish:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [version-check]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_docker-publish.yml@main
+    with:
+      image-name: ai-travel/ai-service
+      tag: v${{ inputs.version }}
+      dockerfile: docker/ai-service/Dockerfile
+      context: services/ai-service
+      deploy-environment: prod
+    secrets:
+      AWS_DEPLOY_ROLE_ARN_DEV: ${{ secrets.AWS_DEPLOY_ROLE_ARN_DEV }}
+      AWS_DEPLOY_ROLE_ARN_PROD: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}
+
+  tag:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [publish]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_tag.yml@main
+    with:
+      service-name: ai-service
+      version: ${{ inputs.version }}
+
+  prod-approval:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [tag]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_production-gate.yml@main
+    with:
+      service-name: ai-service
+
+  cd:
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.publish.result == 'success' }}
+    needs: [publish, tag, prod-approval]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_cd.yml@main
+    with:
+      chart: ai-service
+      image-tag: v${{ inputs.version }}
+      deploy-environment: prod
+      values-file: values-prod.yaml
+      additional-charts: ai-worker
+    secrets:
+      GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
+
+  smoke-test-prod:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [cd]
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_smoke-test.yml@main
+    with:
+      target-environment: prod
+      ecr-image: ai-travel/ai-service
+      ecr-tag: v${{ inputs.version }}
+    secrets:
+      AWS_DEPLOY_ROLE_ARN_DEV: ${{ secrets.AWS_DEPLOY_ROLE_ARN_DEV }}
+      AWS_DEPLOY_ROLE_ARN_PROD: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}

@@ -8,7 +8,13 @@ import DestinationAutocomplete from "../components/DestinationAutocomplete";
 import PageHeader from "../components/PageHeader";
 import { DestinationComparison as DestinationComparisonType } from "../types";
 
-function ComparisonBlock({ title, values }: { title: string; values: Record<string, string> }) {
+function ComparisonBlock({
+  title,
+  values
+}: {
+  readonly title: string;
+  readonly values: Readonly<Record<string, string>>;
+}) {
   return (
     <section className="rounded-lg border border-zinc-200 bg-white p-4">
       <h2 className="mb-3 text-base font-semibold text-zinc-950">{title}</h2>

@@ -2,10 +2,12 @@ services:
   user-db:
     image: postgres:16-alpine
     container_name: ai-travel-user-db
+    env_file:
+      - .env
     environment:
       POSTGRES_DB: user_db
       POSTGRES_USER: user_service
-      POSTGRES_PASSWORD: ${USER_DB_PASSWORD:-user_password}
+      POSTGRES_PASSWORD: ${USER_DB_PASSWORD}
     volumes:
       - user_db_data:/var/lib/postgresql/data
     ports:
@@ -19,10 +21,12 @@ services:
   travel-db:
     image: postgres:16-alpine
     container_name: ai-travel-travel-db
+    env_file:
+      - .env
     environment:
       POSTGRES_DB: travel_db
       POSTGRES_USER: travel_service
-      POSTGRES_PASSWORD: ${TRAVEL_DB_PASSWORD:-travel_password}
+      POSTGRES_PASSWORD: ${TRAVEL_DB_PASSWORD}
     volumes:
       - travel_db_data:/var/lib/postgresql/data
     ports:
@@ -37,10 +41,12 @@ services:
     build:
       context: ./services/user-service
     container_name: ai-travel-user-service
+    env_file:
+      - .env
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-local}
-      DATABASE_URL: postgresql+psycopg://user_service:${USER_DB_PASSWORD:-user_password}@user-db:5432/user_db
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-local-dev-secret}
+      DATABASE_URL: postgresql+psycopg://user_service:${USER_DB_PASSWORD}@user-db:5432/user_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
     depends_on:
       user-db:
@@ -57,10 +63,12 @@ services:
     build:
       context: ./services/travel-service
     container_name: ai-travel-travel-service
+    env_file:
+      - .env
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-local}
-      DATABASE_URL: postgresql+psycopg://travel_service:${TRAVEL_DB_PASSWORD:-travel_password}@travel-db:5432/travel_db
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-local-dev-secret}
+      DATABASE_URL: postgresql+psycopg://travel_service:${TRAVEL_DB_PASSWORD}@travel-db:5432/travel_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
     depends_on:
       travel-db:
@@ -77,11 +85,13 @@ services:
     build:
       context: ./services/ai-service
     container_name: ai-travel-ai-service
+    env_file:
+      - .env
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-local}
       BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-amazon.nova-pro-v1:0}
       BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-local-dev-secret}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
     ports:
       - "8013:8000"
@@ -95,11 +105,13 @@ services:
     build:
       context: ./services/utility-service
     container_name: ai-travel-utility-service
+    env_file:
+      - .env
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-local}
       OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY:-}
       GEOAPIFY_API_KEY: ${GEOAPIFY_API_KEY:-}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-local-dev-secret}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
     ports:
       - "8014:8000"
@@ -143,9 +155,9 @@ services:
       nginx-proxy:
         condition: service_healthy
     ports:
-      - "5173:80"
+      - "5173:8080"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/ > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/ > /dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -153,4 +165,3 @@ services:
 volumes:
   user_db_data:
   travel_db_data:
-

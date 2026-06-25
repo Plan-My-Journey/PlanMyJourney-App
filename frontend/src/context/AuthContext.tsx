@@ -31,7 +31,7 @@ function readStoredUser(): User | null {
   }
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { readonly children: ReactNode }) {
   const [token, setTokenState] = useState<string | null>(() => localStorage.getItem(TOKEN_STORAGE_KEY));
   const [user, setUserState] = useState<User | null>(() => readStoredUser());
 
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         persistAuth(data);
       },
       loginWithCognito: () => {
-        window.location.href = buildAuthorizeUrl(crypto.randomUUID());
+        globalThis.location.href = buildAuthorizeUrl(crypto.randomUUID());
       },
       completeCognitoCallback: async (code: string) => {
         const tokens = await exchangeCodeForTokens(code);
@@ -60,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: payload.sub,
           name: payload.name || payload.email || "Traveler",
           email: payload.email || "",
+          created_at: new Date().toISOString(),
         };
         localStorage.setItem(TOKEN_STORAGE_KEY, tokens.access_token);
         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
@@ -76,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTokenState(null);
         setUserState(null);
         if (isCognitoEnabled()) {
-          window.location.href = buildLogoutUrl();
+          globalThis.location.href = buildLogoutUrl();
         }
       },
       setUser: (nextUser: User) => {
