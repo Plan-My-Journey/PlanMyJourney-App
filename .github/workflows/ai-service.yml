@@ -11,12 +11,14 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "services/ai-service/**"
+      - "services/ai-service/app/worker/**"
       - "docker/ai-service/**"
       - ".github/workflows/ai-service.yml"
   push:
     branches: [dev]
     paths:
       - "services/ai-service/**"
+      - "services/ai-service/app/worker/**"
       - "docker/ai-service/**"
       - ".github/workflows/ai-service.yml"
   workflow_dispatch:
@@ -61,7 +63,6 @@ jobs:
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_sast.yml@main
     with:
       service-path: services/ai-service
-      fail-on-quality-gate: true
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 

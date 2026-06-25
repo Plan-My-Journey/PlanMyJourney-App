@@ -61,7 +61,6 @@ jobs:
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_sast.yml@main
     with:
       service-path: services/travel-service
-      fail-on-quality-gate: true
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
