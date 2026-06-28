@@ -27,8 +27,8 @@ on:
         required: true
         type: choice
         options:
-          - ci
           - dev-deploy
+          - ci
           - release
       version:
         description: "Release version (e.g. 1.2.3) — required only for release"
