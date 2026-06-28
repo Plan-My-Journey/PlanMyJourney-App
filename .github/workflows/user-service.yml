@@ -1,8 +1,7 @@
 name: CI/CD - user-service
 
 # Pull request to dev or main -> validate only (SAST -> SCA -> build image + Trivy)
-# Push to dev              -> build, push SHA tag to ECR, GitOps dev deploy
-# Merge to main            -> nothing runs (no push trigger on main)
+# Push to main             -> build, push SHA tag to ECR, GitOps dev deploy, ArgoCD sync
 # workflow_dispatch        -> version guard -> publish semver -> git tag -> prod CD
 
 on:
@@ -14,7 +13,7 @@ on:
       - "docker/user-service/**"
       - ".github/workflows/user-service.yml"
   push:
-    branches: [dev]
+    branches: [main]
     paths:
       - "services/user-service/**"
       - "docker/user-service/**"
@@ -118,7 +117,7 @@ jobs:
       trivy: ${{ needs.trivy.result }}
 
   deploy-dev:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_dev-deploy-backend.yml@main
     with:
       service-name: user-service
