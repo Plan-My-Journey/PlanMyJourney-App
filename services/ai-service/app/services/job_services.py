@@ -98,7 +98,7 @@ class JobStoreService:
         try:
             response = self._table.get_item(Key={"job_id": job_id})
         except (ClientError, BotoCoreError):
-            logger.exception("Failed to read job %s", job_id)
+            logger.exception("Failed to read job")
             return None
         item = response.get("Item")
         if not item or item.get("user_id") != user_id:

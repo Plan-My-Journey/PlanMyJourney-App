@@ -15,7 +15,7 @@ LOCAL_ONLY_VALUES = ("localhost", "127.0.0.1", "host.docker.internal")
 class Settings(BaseSettings):
     environment: str = "local"
     service_name: str = "user-service"
-    database_url: str = "postgresql+psycopg://user_service:user_password@localhost:5433/user_db"
+    database_url: str = "postgresql+psycopg://user_service@localhost:5433/user_db"
     jwt_secret_key: str = "change-this-local-dev-secret"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440

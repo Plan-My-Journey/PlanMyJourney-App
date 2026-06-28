@@ -51,12 +51,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ensure release runs from main with a version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           if [ "${{ github.ref }}" != "refs/heads/main" ]; then
             echo "::error::Release workflow must be run from the main branch."
             exit 1
           fi
-          if [ -z "${{ inputs.version }}" ]; then
+          if [ -z "$INPUT_VERSION" ]; then
             echo "::error::Version input is required for release run-type."
             exit 1
           fi
@@ -64,7 +66,7 @@ jobs:
   version-check:
     if: github.event_name == 'workflow_dispatch' && inputs.run-type == 'release'
     needs: [guard-main]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_version-check.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_version-check.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       service-name: frontend
       version: ${{ inputs.version }}
@@ -73,7 +75,7 @@ jobs:
     if: >-
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && inputs.run-type == 'ci')
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_sast.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_sast.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       service-path: frontend
     secrets:
@@ -84,7 +86,7 @@ jobs:
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && inputs.run-type == 'ci')
     needs: [sast]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_sca.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_sca.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       service-name: frontend
       service-path: frontend
@@ -97,7 +99,7 @@ jobs:
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && inputs.run-type == 'ci')
     needs: [sca]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_docker-build.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_docker-build.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       service-name: frontend
       dockerfile: docker/frontend/Dockerfile
@@ -109,7 +111,7 @@ jobs:
       (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run-type == 'ci')) &&
       needs.sast.outputs.quality-gate-failed == 'true'
     needs: [sast]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_notify.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_notify.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       subject: "[SAST] SonarCloud quality gate failed — frontend"
       body: "The SonarCloud SAST quality gate failed. Review the findings in SonarCloud before merging."
@@ -124,7 +126,7 @@ jobs:
       (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run-type == 'ci')) &&
       (needs.sca.outputs.critical-found == 'true' || needs.sca.result == 'failure')
     needs: [sca]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_notify.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_notify.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       subject: "[Snyk] Critical dependency vulnerabilities — frontend"
       body: "Snyk SCA found CRITICAL dependency vulnerabilities. Review and remediate before merging."
@@ -136,7 +138,7 @@ jobs:
   pr-comment:
     if: ${{ always() && github.event_name == 'pull_request' }}
     needs: [sast, sca, trivy]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_pr-comment.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_pr-comment.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       service-name: frontend
       sast: ${{ needs.sast.result }}
@@ -147,7 +149,7 @@ jobs:
     if: >-
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && inputs.run-type == 'dev-deploy')
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_dev-deploy-backend.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_dev-deploy-backend.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       service-name: frontend
       chart: frontend
@@ -165,7 +167,7 @@ jobs:
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.run-type == 'release'
     needs: [version-check]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_docker-publish.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_docker-publish.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       image-name: ai-travel/frontend
       tag: v${{ inputs.version }}
@@ -179,7 +181,7 @@ jobs:
   tag:
     if: github.event_name == 'workflow_dispatch' && inputs.run-type == 'release'
     needs: [publish]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_tag.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_tag.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       service-name: frontend
       version: ${{ inputs.version }}
@@ -187,14 +189,14 @@ jobs:
   prod-approval:
     if: github.event_name == 'workflow_dispatch' && inputs.run-type == 'release'
     needs: [tag]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_production-gate.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_production-gate.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       service-name: frontend
 
   cd:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run-type == 'release' && needs.publish.result == 'success' }}
     needs: [publish, tag, prod-approval]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_cd.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_cd.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       chart: frontend
       image-tag: v${{ inputs.version }}
@@ -206,7 +208,7 @@ jobs:
   smoke-test-prod:
     if: github.event_name == 'workflow_dispatch' && inputs.run-type == 'release'
     needs: [cd]
-    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_smoke-test.yml@main
+    uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_smoke-test.yml@99dd98456cf1690eb3a89ef4545298046c1553d0
     with:
       target-environment: prod
       ecr-image: ai-travel/frontend
