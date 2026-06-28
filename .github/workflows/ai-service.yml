@@ -15,7 +15,7 @@ on:
       - "docker/ai-service/**"
       - ".github/workflows/ai-service.yml"
   push:
-    branches: [dev]
+    branches: [main]
     paths:
       - "services/ai-service/**"
       - "services/ai-service/app/worker/**"
@@ -120,7 +120,7 @@ jobs:
       trivy: ${{ needs.trivy.result }}
 
   deploy-dev:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_dev-deploy-backend.yml@main
     with:
       service-name: ai-service
