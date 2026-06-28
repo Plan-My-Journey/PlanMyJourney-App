@@ -23,8 +23,8 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/log/nginx /etc/nginx/conf.d \
-    && touch /var/run/nginx.pid \
-    && chown nginx:nginx /var/run/nginx.pid
+    && touch /run/nginx.pid && chown nginx:nginx /run/nginx.pid \
+    && touch /var/run/nginx.pid && chown nginx:nginx /var/run/nginx.pid
 
 USER nginx
 
