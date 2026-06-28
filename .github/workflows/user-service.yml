@@ -1,8 +1,10 @@
 name: CI/CD - user-service
 
 # Pull request to dev or main -> validate only (SAST -> SCA -> build image + Trivy)
-# Push to main             -> build, push SHA tag to ECR, GitOps dev deploy, ArgoCD sync
-# workflow_dispatch        -> version guard -> publish semver -> git tag -> prod CD
+# Push to main              -> build, push SHA tag to ECR, GitOps dev deploy, ArgoCD sync
+# workflow_dispatch ci       -> same as PR validation, run manually on any branch
+# workflow_dispatch dev-deploy -> same as push to main, build + deploy to dev manually
+# workflow_dispatch release  -> version guard -> publish semver -> git tag -> prod CD
 
 on:
   pull_request:
@@ -20,9 +22,17 @@ on:
       - ".github/workflows/user-service.yml"
   workflow_dispatch:
     inputs:
-      version:
-        description: "Release version (e.g. 1.2.3)"
+      run-type:
+        description: "What to run"
         required: true
+        type: choice
+        options:
+          - ci
+          - dev-deploy
+          - release
+      version:
+        description: "Release version (e.g. 1.2.3) — required only for release"
+        required: false
         type: string
 
 concurrency:
@@ -37,18 +47,22 @@ permissions:
 
 jobs:
   guard-main:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.run-type == 'release'
     runs-on: ubuntu-latest
     steps:
-      - name: Ensure release runs from main
+      - name: Ensure release runs from main with a version
         run: |
           if [ "${{ github.ref }}" != "refs/heads/main" ]; then
             echo "::error::Release workflow must be run from the main branch."
             exit 1
           fi
+          if [ -z "${{ inputs.version }}" ]; then
+            echo "::error::Version input is required for release run-type."
+            exit 1
+          fi
 
   version-check:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.run-type == 'release'
     needs: [guard-main]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_version-check.yml@main
     with:
@@ -56,7 +70,9 @@ jobs:
       version: ${{ inputs.version }}
 
   sast:
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && inputs.run-type == 'ci')
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_sast.yml@main
     with:
       service-path: services/user-service
@@ -64,7 +80,9 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   sca:
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && inputs.run-type == 'ci')
     needs: [sast]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_sca.yml@main
     with:
@@ -74,7 +92,9 @@ jobs:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
   trivy:
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && inputs.run-type == 'ci')
     needs: [sca]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_docker-build.yml@main
     with:
@@ -83,24 +103,30 @@ jobs:
       context: services/user-service
 
   notify-sast:
-    if: ${{ always() && github.event_name == 'pull_request' && needs.sast.outputs.quality-gate-failed == 'true' }}
+    if: >-
+      always() &&
+      (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run-type == 'ci')) &&
+      needs.sast.outputs.quality-gate-failed == 'true'
     needs: [sast]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_notify.yml@main
     with:
       subject: "[SAST] SonarCloud quality gate failed — user-service"
-      body: "The SonarCloud SAST quality gate failed on this pull request. Review the findings in SonarCloud before merging."
+      body: "The SonarCloud SAST quality gate failed. Review the findings in SonarCloud before merging."
       service-name: user-service
     secrets:
       BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
       NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
 
   notify-sca:
-    if: ${{ always() && github.event_name == 'pull_request' && (needs.sca.outputs.critical-found == 'true' || needs.sca.result == 'failure') }}
+    if: >-
+      always() &&
+      (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run-type == 'ci')) &&
+      (needs.sca.outputs.critical-found == 'true' || needs.sca.result == 'failure')
     needs: [sca]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_notify.yml@main
     with:
       subject: "[Snyk] Critical dependency vulnerabilities — user-service"
-      body: "Snyk SCA found CRITICAL dependency vulnerabilities on this pull request. Review and remediate before merging."
+      body: "Snyk SCA found CRITICAL dependency vulnerabilities. Review and remediate before merging."
       service-name: user-service
     secrets:
       BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
@@ -117,7 +143,9 @@ jobs:
       trivy: ${{ needs.trivy.result }}
 
   deploy-dev:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.run-type == 'dev-deploy')
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_dev-deploy-backend.yml@main
     with:
       service-name: user-service
@@ -134,7 +162,7 @@ jobs:
       ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
 
   publish:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.run-type == 'release'
     needs: [version-check]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_docker-publish.yml@main
     with:
@@ -148,7 +176,7 @@ jobs:
       AWS_DEPLOY_ROLE_ARN_PROD: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PROD }}
 
   tag:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.run-type == 'release'
     needs: [publish]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_tag.yml@main
     with:
@@ -156,14 +184,14 @@ jobs:
       version: ${{ inputs.version }}
 
   prod-approval:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.run-type == 'release'
     needs: [tag]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_production-gate.yml@main
     with:
       service-name: user-service
 
   cd:
-    if: ${{ github.event_name == 'workflow_dispatch' && needs.publish.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run-type == 'release' && needs.publish.result == 'success' }}
     needs: [publish, tag, prod-approval]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_cd.yml@main
     with:
@@ -175,7 +203,7 @@ jobs:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
 
   smoke-test-prod:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.run-type == 'release'
     needs: [cd]
     uses: Plan-My-Journey/PlanMyJourney-Workflows/.github/workflows/_smoke-test.yml@main
     with:
