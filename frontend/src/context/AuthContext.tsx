@@ -35,19 +35,19 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
   const [token, setTokenState] = useState<string | null>(() => localStorage.getItem(TOKEN_STORAGE_KEY));
   const [user, setUserState] = useState<User | null>(() => readStoredUser());
 
-  const isValidJwt = (token: string): boolean => /^[A-Za-z0-9\-_.]+$/.test(token);
+  const sanitizeToken = (token: string): string => {
+    const parts = token.split(".");
+    if (parts.length !== 3) return "";
+    return parts.map(p => encodeURIComponent(decodeURIComponent(p))).join(".");
+  };
+
+  const sanitizeUser = (u: User): string =>
+    JSON.stringify({ id: String(u.id), name: String(u.name), email: String(u.email), created_at: String(u.created_at) });
 
   const persistAuth = (payload: AuthResponse) => {
-    if (isValidJwt(payload.access_token)) {
-      localStorage.setItem(TOKEN_STORAGE_KEY, payload.access_token);
-    }
-    const safeUser = {
-      id: String(payload.user.id),
-      name: String(payload.user.name),
-      email: String(payload.user.email),
-      created_at: String(payload.user.created_at),
-    };
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(safeUser));
+    const safeToken = sanitizeToken(payload.access_token);
+    if (safeToken) localStorage.setItem(TOKEN_STORAGE_KEY, safeToken);
+    localStorage.setItem(USER_STORAGE_KEY, sanitizeUser(payload.user));
     setTokenState(payload.access_token);
     setUserState(payload.user);
   };
@@ -72,11 +72,9 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
           email: payload.email || "",
           created_at: new Date().toISOString(),
         };
-        if (isValidJwt(tokens.access_token)) {
-          localStorage.setItem(TOKEN_STORAGE_KEY, tokens.access_token);
-        }
-        const safeUser = { id: String(user.id), name: String(user.name), email: String(user.email), created_at: String(user.created_at) };
-        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(safeUser));
+        const safeToken = sanitizeToken(tokens.access_token);
+        if (safeToken) localStorage.setItem(TOKEN_STORAGE_KEY, safeToken);
+        localStorage.setItem(USER_STORAGE_KEY, sanitizeUser(user));
         setTokenState(tokens.access_token);
         setUserState(user);
       },

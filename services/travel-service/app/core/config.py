@@ -15,7 +15,7 @@ LOCAL_ONLY_VALUES = ("localhost", "127.0.0.1", "host.docker.internal")
 class Settings(BaseSettings):
     environment: str = "local"
     service_name: str = "travel-service"
-    database_url: str = "postgresql+psycopg://travel_service@localhost:5434/travel_db"
+    database_url: str
     jwt_secret_key: str = "change-this-local-dev-secret"
     jwt_algorithm: str = "HS256"
     cors_origins: str = "http://localhost:5173,http://localhost:8080"
