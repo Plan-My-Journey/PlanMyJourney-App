@@ -47,10 +47,12 @@ class TravelAIService:
     async def generate_itinerary(self, payload) -> dict[str, Any]:
         fallback = self._fallback_itinerary(payload)
         prompt = (
-            "Create a practical travel itinerary as strict JSON with keys "
+            "Create a detailed travel itinerary as strict JSON with keys "
             "trip_summary, day_wise_plan, estimated_budget_breakdown, travel_tips. "
             "day_wise_plan must be an array of objects with day, title, morning, afternoon, evening. "
-            f"Destination: {payload.destination}. Budget: {payload.budget}. Days: {payload.days}. "
+            "IMPORTANT: Always mention specific real place names, landmark names, restaurant names, "
+            "and attraction names for the destination — never use generic descriptions. "
+            f"Destination: {payload.destination}. Budget: ${payload.budget}. Days: {payload.days}. "
             f"Interests: {', '.join(payload.interests) or 'general sightseeing'}."
         )
         generated = await self._complete_json(prompt, fallback)
@@ -242,6 +244,26 @@ class TravelAIService:
                 3: {"title": "Munnar Day 3: Prehistoric Dolmens", "morning": "Drive to Marayoor to see natural sandalwood forests and prehistoric stone dolmens.", "afternoon": "Visit Kanthalloor, famous for its organic fruit orchards and cool climate.", "evening": "Enjoy a traditional Kerala dinner served on a banana leaf at a local restaurant."},
                 4: {"title": "Munnar Day 4: Sunrise & Lake", "morning": "Wake up early for a drive to Top Station to witness the spectacular sunrise over the clouds.", "afternoon": "Visit Kundala Lake for a unique pedal boat experience among the trees.", "evening": "Relax at a local cafe enjoying hot piping cardamom tea and banana fritters."},
                 5: {"title": "Munnar Day 5: Jeep Safari", "morning": "Take an adventurous jeep ride to Kolukkumalai, the highest tea estate in the world.", "afternoon": "Tour the century-old orthodox tea factory and learn about traditional tea processing.", "evening": "Watch the sunset from the hilltop, enjoying the panoramic views of the valleys."},
+            }
+        elif "varkala" in dest:
+            custom_plans = {
+                1: {"title": "Varkala Day 1: Papanasam Beach & Cliffs", "morning": "Start at Papanasam Beach — the sacred beach believed to wash away sins — for a morning swim and sunrise views from the iconic Red Cliffs.", "afternoon": "Walk the North Cliff promenade, browse the Tibetan Market stalls, and lunch at Café del Mar or Abba Restaurant with cliff-top sea views.", "evening": "Watch the sunset from the clifftop viewpoint near Helipad Beach, then dine at Darjeeling Café for fresh seafood."},
+                2: {"title": "Varkala Day 2: Sivagiri Mutt & Backwaters", "morning": "Visit Sivagiri Mutt, the samadhi and cultural center of saint Sree Narayana Guru, followed by Janardana Swami Temple overlooking the Arabian Sea.", "afternoon": "Take a Kerala backwater canoe tour through the Varkala Canal and Azhimala Lake, spotting kingfishers and coconut palms.", "evening": "Return to the cliff for yoga at one of the beachside studios, then enjoy a thali dinner at Juice Shack or Soul & Surf restaurant."},
+                3: {"title": "Varkala Day 3: Anchuthengu Fort & Kappil Beach", "morning": "Drive 12 km to explore the ruins of Anchuthengu Fort, a 17th-century Dutch and British coastal fortification with panoramic sea views.", "afternoon": "Head to Kappil Beach and Kappil Lake, where the backwaters meet the sea — enjoy a boat ride across the serene lagoon.", "evening": "Back on North Cliff, catch the last sunset at Black Beach, then celebrate with fresh grilled tiger prawns at Clafouti Restaurant."},
+                4: {"title": "Varkala Day 4: Ayurvedic Wellness", "morning": "Book a traditional Abhyanga (full body oil massage) at one of the authentic Ayurvedic centers on the cliff — Krishnatheeram or Eden Garden Ayurveda.", "afternoon": "Explore the Varkala Market town for local spices, banana chips, and Kerala handicrafts — pick up aromatic coconut oil and coir products.", "evening": "Meditate at Varkala Beach during golden hour, then enjoy a farewell Kerala fish curry dinner at the German Bakery or Abba Restaurant."},
+                5: {"title": "Varkala Day 5: Lighthouse & Marine Drive", "morning": "Visit the Varkala Lighthouse for a panoramic 360-degree view of the coast and backwaters from the top.", "afternoon": "Spend the afternoon at Odayam Beach, a quieter stretch south of the cliffs loved by surfers and backpackers.", "evening": "Enjoy a final cliff-top bonfire dinner at one of the beach shacks — the Rock n Roll Café hosts live music on weekends."},
+            }
+        elif "goa" in dest:
+            custom_plans = {
+                1: {"title": "Goa Day 1: North Goa Beaches", "morning": "Start at Calangute Beach, Goa's most popular beach, then walk south to Baga Beach to see the famous beach shacks.", "afternoon": "Explore the Fort Aguada ruins overlooking the Arabian Sea, then visit Sinquerim Beach.", "evening": "Head to Tito's Lane in Baga for dinner at Fiesta restaurant, followed by live music at Cavala Bar."},
+                2: {"title": "Goa Day 2: Old Goa Heritage", "morning": "Explore the UNESCO World Heritage Site of Old Goa — visit the Basilica of Bom Jesus (St. Francis Xavier's tomb) and Se Cathedral.", "afternoon": "Stroll through Fontainhas, Panjim's Latin Quarter with its Portuguese-era houses and art galleries.", "evening": "Cruise on the Mandovi River at sunset, watching the light show on the banks, then dinner at Viva Panjim."},
+                3: {"title": "Goa Day 3: South Goa Serenity", "morning": "Drive to Palolem Beach in South Goa — one of India's most beautiful crescent-shaped beaches, ideal for kayaking.", "afternoon": "Visit Cotigao Wildlife Sanctuary for a jungle walk spotting gaur, spotted deer, and giant Malabar squirrels.", "evening": "Sunset yoga at Butterfly Beach (accessible only by boat), followed by seafood barbecue at The Ourem 88 in Chaudi."},
+            }
+        elif "jaipur" in dest:
+            custom_plans = {
+                1: {"title": "Jaipur Day 1: Amber Fort & Nahargarh", "morning": "Take an elephant ride up to the magnificent Amber Fort (Amer Fort), exploring its Sheesh Mahal (Palace of Mirrors) and Ganesh Pol gateway.", "afternoon": "Visit the Jaigarh Fort above Amber to see the world's largest wheeled cannon, Jaivana, with panoramic views.", "evening": "Watch the sunset from Nahargarh Fort, then dinner at Peacock Rooftop Restaurant for traditional Rajasthani thali."},
+                2: {"title": "Jaipur Day 2: Pink City Heritage", "morning": "Photograph the iconic Hawa Mahal (Palace of Winds) facade, then explore the City Palace Museum and Chandra Mahal.", "afternoon": "Visit Jantar Mantar, the 18th-century astronomical observatory — a UNESCO World Heritage Site — and Birla Mandir temple.", "evening": "Shop for block-print textiles, blue pottery, and gemstones at Johari Bazaar and Bapu Bazaar, then dinner at Suvarna Mahal."},
+                3: {"title": "Jaipur Day 3: Markets & Local Life", "morning": "Explore Sisodia Rani Garden and Galta Ji (Monkey Temple) for a spiritual sunrise experience with mountain views.", "afternoon": "Visit the Albert Hall Museum for Rajasthani art and artifacts, then explore Tripolia Bazaar for lac bangles.", "evening": "Attend the Chokhi Dhani cultural village for folk dance, camel rides, and a traditional Rajasthani dinner on the floor."},
             }
 
         day_wise_plan = []
